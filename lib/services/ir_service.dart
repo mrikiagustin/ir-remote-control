@@ -39,22 +39,26 @@ class IrService {
     required int delaySeconds,
     required int frequency,
     required List<int> pattern,
+    String actionType = 'OFF', // 'OFF' or 'ON'
   }) async {
     try {
       final bool success = await _channel.invokeMethod('scheduleSleepTimer', {
         'delaySeconds': delaySeconds,
         'frequency': frequency,
         'pattern': pattern,
+        'actionType': actionType,
       });
       return success;
     } on PlatformException catch (e) {
-      throw Exception(e.message ?? 'Gagal menjadwalkan sleep timer');
+      throw Exception(e.message ?? 'Gagal menjadwalkan timer');
     }
   }
 
-  static Future<bool> cancelSleepTimer() async {
+  static Future<bool> cancelSleepTimer({String actionType = 'OFF'}) async {
     try {
-      final bool success = await _channel.invokeMethod('cancelSleepTimer');
+      final bool success = await _channel.invokeMethod('cancelSleepTimer', {
+        'actionType': actionType,
+      });
       return success;
     } on PlatformException catch (e) {
       throw Exception(e.message ?? 'Gagal membatalkan timer');

@@ -21,9 +21,12 @@ class MainActivity : FlutterActivity() {
     private var irManager: ConsumerIrManager? = null
     private var eventSink: EventChannel.EventSink? = null
 
-    private val acOffReceiver = object : BroadcastReceiver() {
+    private val acEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            eventSink?.success("AC_OFF_FIRED")
+            when (intent?.action) {
+                "com.example.mobile_remote.AC_TURNED_OFF" -> eventSink?.success("AC_OFF_FIRED")
+                "com.example.mobile_remote.AC_TURNED_ON" -> eventSink?.success("AC_ON_FIRED")
+            }
         }
     }
 
@@ -38,17 +41,20 @@ class MainActivity : FlutterActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     eventSink = events
-                    val filter = IntentFilter("com.example.mobile_remote.AC_TURNED_OFF")
+                    val filter = IntentFilter().apply {
+                        addAction("com.example.mobile_remote.AC_TURNED_OFF")
+                        addAction("com.example.mobile_remote.AC_TURNED_ON")
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        registerReceiver(acOffReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                        registerReceiver(acEventReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
                     } else {
-                        registerReceiver(acOffReceiver, filter)
+                        registerReceiver(acEventReceiver, filter)
                     }
                 }
 
                 override fun onCancel(arguments: Any?) {
                     try {
-                        unregisterReceiver(acOffReceiver)
+                        unregisterReceiver(acEventReceiver)
                     } catch (e: Exception) {
                         // ignore
                     }
@@ -100,6 +106,8 @@ class MainActivity : FlutterActivity() {
                     val delaySeconds = call.argument<Int>("delaySeconds") ?: 0
                     val frequency = call.argument<Int>("frequency") ?: 38000
                     val patternList = call.argument<List<Int>>("pattern")
+                    val actionType = call.argument<String>("actionType") ?: "OFF" // "OFF" or "ON"
+                    val requestCode = if (actionType == "ON") 998 else 999
 
                     if (patternList == null || patternList.isEmpty() || delaySeconds <= 0) {
                         result.error("INVALID_ARGUMENT", "Invalid delay or pattern", null)
@@ -111,6 +119,7 @@ class MainActivity : FlutterActivity() {
                         val intent = Intent(this, IrAlarmReceiver::class.java).apply {
                             putExtra("frequency", frequency)
                             putExtra("pattern", patternList.toIntArray())
+                            putExtra("actionType", actionType)
                         }
 
                         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -121,7 +130,7 @@ class MainActivity : FlutterActivity() {
 
                         val pendingIntent = PendingIntent.getBroadcast(
                             this,
-                            999,
+                            requestCode,
                             intent,
                             flags
                         )
@@ -147,6 +156,8 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "cancelSleepTimer" -> {
+                    val actionType = call.argument<String>("actionType") ?: "OFF"
+                    val requestCode = if (actionType == "ON") 998 else 999
                     try {
                         val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
                         val intent = Intent(this, IrAlarmReceiver::class.java)
@@ -157,7 +168,7 @@ class MainActivity : FlutterActivity() {
                         }
                         val pendingIntent = PendingIntent.getBroadcast(
                             this,
-                            999,
+                            requestCode,
                             intent,
                             flags
                         )

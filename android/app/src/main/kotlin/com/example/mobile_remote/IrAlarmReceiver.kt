@@ -15,12 +15,13 @@ class IrAlarmReceiver : BroadcastReceiver() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
         val wakeLock = powerManager?.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
-            "MobileRemote:IrSleepWakeLock"
+            "MobileRemote:IrAlarmWakeLock"
         )
-        wakeLock?.acquire(10000) // Tahan CPU 10 detik
+        wakeLock?.acquire(10000)
 
         val frequency = intent.getIntExtra("frequency", 38000)
         val pattern = intent.getIntArrayExtra("pattern")
+        val actionType = intent.getStringExtra("actionType") ?: "OFF" // "OFF" or "ON"
 
         if (pattern != null && pattern.isNotEmpty()) {
             val irManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
@@ -33,11 +34,22 @@ class IrAlarmReceiver : BroadcastReceiver() {
             }
         }
 
-        // Tampilkan notifikasi konfirmasi bahwa AC sudah dimatikan
-        showNotification(context)
+        val notifTitle = if (actionType == "ON") "Timer AC: Turn ON" else "Timer AC: Turn OFF"
+        val notifContent = if (actionType == "ON") {
+            "Sinyal IR Turn ON telah dikirim ke AC."
+        } else {
+            "Sinyal IR Turn OFF telah dikirim ke AC."
+        }
+        val notifId = if (actionType == "ON") 1002 else 1001
 
-        // Broadcast event ke Flutter jika sedang hidup/foreground
-        val callbackIntent = Intent("com.example.mobile_remote.AC_TURNED_OFF")
+        showNotification(context, notifTitle, notifContent, notifId)
+
+        val callbackAction = if (actionType == "ON") {
+            "com.example.mobile_remote.AC_TURNED_ON"
+        } else {
+            "com.example.mobile_remote.AC_TURNED_OFF"
+        }
+        val callbackIntent = Intent(callbackAction)
         context.sendBroadcast(callbackIntent)
 
         wakeLock?.let {
@@ -47,29 +59,29 @@ class IrAlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun showNotification(context: Context) {
-        val channelId = "ir_sleep_timer_channel"
+    private fun showNotification(context: Context, title: String, content: String, notificationId: Int) {
+        val channelId = "ir_timer_channel"
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Timer Sleep AC",
+                "Timer AC",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifikasi status pematian AC otomatis"
+                description = "Notifikasi status timer AC otomatis"
             }
             notificationManager.createNotificationChannel(channel)
         }
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_power_off)
-            .setContentTitle("Timer Sleep AC")
-            .setContentText("Sinyal IR Turn Off telah dikirim ke AC.")
+            .setContentTitle(title)
+            .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(1001, notification)
+        notificationManager.notify(notificationId, notification)
     }
 }
