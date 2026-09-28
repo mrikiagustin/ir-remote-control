@@ -173,6 +173,18 @@ class MainActivity : FlutterActivity() {
                             flags
                         )
                         alarmManager?.cancel(pendingIntent)
+
+                        // Jika batalkan ON, batalkan juga pending resend (997)
+                        if (actionType == "ON") {
+                            val resendPendingIntent = PendingIntent.getBroadcast(
+                                this,
+                                997,
+                                intent,
+                                flags
+                            )
+                            alarmManager?.cancel(resendPendingIntent)
+                        }
+
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("CANCEL_FAILED", e.localizedMessage, null)
